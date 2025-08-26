@@ -8,8 +8,6 @@ Original file is located at
 """
 
 # app.py
-!pip install streamlit
-
 import streamlit as st
 import pandas as pd
 from jra_logic import get_jra_info, normalize_kb, find_codes_for_year_and_title
