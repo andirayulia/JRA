@@ -8,10 +8,11 @@ Original file is located at
 """
 
 # app.py
+# app.py
 import streamlit as st
 import pandas as pd
 
-# Aturan JRA
+# ==== Aturan JRA ====
 JRA_RULES = [
     {"label": "JRA 1994", "start": 1994, "end": 2001, "excel": 1994},
     {"label": "JRA 2002", "start": 2002, "end": 2005, "excel": 2002},
@@ -33,6 +34,7 @@ def cari_kode(tahun: int, judul: str, df: pd.DataFrame):
     jra_label = jra_info["label"]
     excel_jra = jra_info["excel"]
 
+    # Bersihkan df
     df = df[['Jenis Dokumen', 'JRA', 'Kode']].copy()
     df = df.dropna(subset=['JRA'])
     df["JRA"] = df["JRA"].astype('Int64')
@@ -76,4 +78,3 @@ if st.button("Cari Kode Arsip"):
     else:
         hasil = cari_kode(tahun, judul, df)
         st.success(hasil)
-
