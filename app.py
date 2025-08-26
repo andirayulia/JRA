@@ -10,37 +10,58 @@ Original file is located at
 # app.py
 import streamlit as st
 import pandas as pd
-from jra_logic import get_jra_info, normalize_kb, find_codes_for_year_and_title
 
-st.set_page_config(page_title="Pencari Kode Arsip (JRA)", page_icon="🗂️", layout="centered")
-st.title("🔎 Pencarian Kode Arsip berdasarkan Tahun & Judul")
+# Aturan JRA
+JRA_RULES = [
+    {"label": "JRA 1994", "start": 1994, "end": 2001, "excel": 1994},
+    {"label": "JRA 2002", "start": 2002, "end": 2005, "excel": 2002},
+    {"label": "JRA 2006", "start": 2006, "end": 2018, "excel": 2006},
+    {"label": "JRA 2019", "start": 2019, "end": 2026, "excel": 2019},
+]
 
-st.markdown("""
-Masukkan **Tahun Dokumen** (tahun saja) dan **Judul / Deskripsi** dokumen.
-Aplikasi akan:
-1. Tentukan JRA berdasarkan aturan (otomatis).
-2. Cari di `knowledge_base.xlsx` (kolom: Jenis Dokumen, JRA, Kode) berdasarkan JRA + kecocokan judul.
-""")
+def get_jra_info(year: int):
+    for rule in JRA_RULES:
+        if rule["start"] <= year <= rule["end"]:
+            return rule
+    return None
 
-# Upload KB (opsional)
-uploaded = st.file_uploader("Upload knowledge_base.xlsx (opsional, format: .xlsx)", type=["xlsx"])
-if uploaded is None:
-    try:
-        df_kb = pd.read_excel("knowledge_base.xlsx")
-    except Exception:
-        df_kb = pd.DataFrame(columns=["Jenis Dokumen","JRA","Kode"])
+def cari_kode(tahun: int, judul: str, df: pd.DataFrame):
+    jra_info = get_jra_info(tahun)
+    if not jra_info:
+        return f"Tidak ada JRA untuk tahun {tahun}"
+
+    jra_label = jra_info["label"]
+    excel_jra = jra_info["excel"]
+
+    df = df[['Jenis Dokumen', 'JRA', 'Kode']].copy()
+    df = df.dropna(subset=['JRA'])
+    df["JRA"] = df["JRA"].astype('Int64')
+
+    df_filtered = df[df["JRA"] == excel_jra]
+
+    if df_filtered.empty:
+        return f"Tidak ada data untuk JRA {excel_jra} di Excel."
+
+    for _, row in df_filtered.iterrows():
+        if judul.lower() in str(row["Jenis Dokumen"]).lower():
+            return f"JRA: {jra_label}, Kode Arsip: {row['Kode']}"
+
+    return f"Tidak ditemukan kode untuk judul '{judul}' pada JRA {jra_label}"
+
+# ==== Streamlit UI ====
+st.set_page_config(page_title="Pencari Kode Arsip (JRA)", page_icon="🗂️")
+st.title("🔎 Pencarian Kode Arsip")
+
+# Upload atau gunakan default Excel
+uploaded = st.file_uploader("Upload knowledge_base.xlsx (opsional)", type=["xlsx"])
+if uploaded is not None:
+    df = pd.read_excel(uploaded)
 else:
-    df_kb = pd.read_excel(uploaded)
-
-with st.expander("Lihat preview KB"):
-    st.write(df_kb.head())
-
-# Normalize KB
-try:
-    df_kb = normalize_kb(df_kb)
-except Exception as e:
-    st.error(f"Error memproses KB: {e}")
-    st.stop()
+    try:
+        df = pd.read_excel("knowledge_base.xlsx")
+    except Exception:
+        st.error("File knowledge_base.xlsx tidak ditemukan.")
+        st.stop()
 
 st.header("Input Dokumen")
 col1, col2 = st.columns([2,1])
@@ -50,20 +71,9 @@ with col2:
     tahun = st.number_input("Tahun Dokumen", min_value=1900, max_value=2100, value=2017, step=1)
 
 if st.button("Cari Kode Arsip"):
-    if not judul:
+    if not judul.strip():
         st.warning("Isi judul dokumen dulu.")
     else:
-        jra_info = get_jra_info(int(tahun))
-        if not jra_info:
-            st.error(f"Tahun {tahun} tidak masuk aturan JRA.")
-        else:
-            st.success(f"Ditentukan: **{jra_info['label']}** (Excel JRA = {jra_info['excel']})")
-            hasil = find_codes_for_year_and_title(df_kb, jra_info['excel'], judul)
-            if hasil.empty:
-                st.info("Tidak ditemukan kecocokan langsung. Menampilkan semua entri JRA:")
-                st.dataframe(df_kb[df_kb["JRA"]==jra_info['excel']])
-            else:
-                st.subheader("Hasil Cocok")
-                st.dataframe(hasil.reset_index(drop=True))
-                csv = hasil.to_csv(index=False).encode("utf-8")
-                st.download_button("Download hasil (CSV)", data=csv, file_name="hasil_kode_arsip.csv", mime="text/csv")
+        hasil = cari_kode(tahun, judul, df)
+        st.success(hasil)
+
