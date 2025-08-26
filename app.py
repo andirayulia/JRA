@@ -22,10 +22,9 @@ Aplikasi akan:
 2. Cari di `knowledge_base.xlsx` (kolom: Jenis Dokumen, JRA, Kode) berdasarkan JRA + kecocokan judul.
 """)
 
-# Upload KB (override)
+# Upload KB (opsional)
 uploaded = st.file_uploader("Upload knowledge_base.xlsx (opsional, format: .xlsx)", type=["xlsx"])
 if uploaded is None:
-    # Try to load default file shipped in repo (if deployed)
     try:
         df_kb = pd.read_excel("knowledge_base.xlsx")
     except Exception:
@@ -33,26 +32,22 @@ if uploaded is None:
 else:
     df_kb = pd.read_excel(uploaded)
 
-# show raw KB toggle
-with st.expander("Lihat preview knowledge base (KB)"):
+with st.expander("Lihat preview KB"):
     st.write(df_kb.head())
 
-# normalize KB
+# Normalize KB
 try:
     df_kb = normalize_kb(df_kb)
 except Exception as e:
     st.error(f"Error memproses KB: {e}")
     st.stop()
 
-st.write("")  # spacer
 st.header("Input Dokumen")
 col1, col2 = st.columns([2,1])
 with col1:
-    judul = st.text_input("Judul / Deskripsi Dokumen", placeholder="contoh: Penugasan Dinas ke luar kota")
+    judul = st.text_input("Judul / Deskripsi Dokumen", placeholder="contoh: Penugasan Dinas")
 with col2:
     tahun = st.number_input("Tahun Dokumen", min_value=1900, max_value=2100, value=2017, step=1)
-
-no_naskah = st.text_input("Nomor Naskah Dinas (opsional)")
 
 if st.button("Cari Kode Arsip"):
     if not judul:
@@ -63,18 +58,12 @@ if st.button("Cari Kode Arsip"):
             st.error(f"Tahun {tahun} tidak masuk aturan JRA.")
         else:
             st.success(f"Ditentukan: **{jra_info['label']}** (Excel JRA = {jra_info['excel']})")
-            # cari
-            hasil = find_codes_for_year_and_title(df_kb, jra_info['excel'], judul,
-                                                  min_token_match=1, fuzzy_threshold=75)
+            hasil = find_codes_for_year_and_title(df_kb, jra_info['excel'], judul)
             if hasil.empty:
-                st.info("Tidak ditemukan kecocokan langsung. Menampilkan semua entri JRA untuk referensi:")
+                st.info("Tidak ditemukan kecocokan langsung. Menampilkan semua entri JRA:")
                 st.dataframe(df_kb[df_kb["JRA"]==jra_info['excel']])
             else:
                 st.subheader("Hasil Cocok")
                 st.dataframe(hasil.reset_index(drop=True))
-                # download
                 csv = hasil.to_csv(index=False).encode("utf-8")
                 st.download_button("Download hasil (CSV)", data=csv, file_name="hasil_kode_arsip.csv", mime="text/csv")
-
-st.markdown("---")
-st.caption("Notes: Kolom JRA di KB berisi angka 1994/2002/2006/2019 (bukan 'JRA 2006'). Jika upload KB, pastikan kolom ada dan rapi.")
